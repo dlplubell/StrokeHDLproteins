@@ -1,0 +1,1682 @@
+---
+title: "Statistical Analysis to accompany: "
+subtitle: "High-density lipoprotein carries markers that track with recovery from stroke"
+author: "Plubell D.L., et al., Circulation Research 2020"
+date: "1/12/2020"
+output:
+    html_document:
+      code_folding: hide
+      toc: true
+      toc_float: true
+      theme: spacelab
+      highlight: haddock
+---
+__Updated June 5, 2020 by DLP__
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Outline 
+
+* __Abstract__
+* __Demographic information__
+    + _Table 1._ Non-stroke v Stroke demographics
+* __HDL protein differential abundance testing__
+    + Shapiro-Wilk test for normality of each protein
+    + _Table 2._ Significant changes
+    + _Figure 2._ Significantly changing HDL protein abundance distributions
+    + _Figure 3._ Paired significantly changing HDL protein abundances
+* __Correlation testing__
+    + _Figure 4._ Correlation plot of all patient measures
+* __Stroke recovery linear regression analysis__
+    + _Table 3._ HDL protein logFC from 24h to 96 h post stroke with significant correlation with stroke recovery
+* __Cholesterol efflux capacity analysis__
+    + _Table 4._ Cholesterol efflux analysis
+    + _Figure 5._ Cholesterol efflux distribution plot 
+* __Supplemental figures/tables__
+    + _Supplemental Figure 1._ Effect of normalization on N15 APOA1 spike-in variance distribution
+    + _Supplemental Table 4._ Correlation results matrices
+    + _Supplemental Figure 4._ Plots of HDL protein logFC correlation with stroke recovery
+    + _Supplemental Table 5._ Linear regression statistics for HDL protein logFC and stroke recovery
+    + _Supplemental Figure 5._ Plots of plasma lipid level correlation with stroke recovery 
+    + _Supplemental Table 6._ Linear regression statistics for plasma lipid levels and stroke recovery
+    + _Supplemental Table 7._ Linear regression statistics for plasma lipid levels and HDL protein logFC
+    + _Supplemental Figure 6._ CEC distributions of stroke tPA status
+    + _Supplemental Table 8._ T-test statistics for plasma lipid levels by stroke tPA status
+* __Additional info for reviewers__
+  
+<br>
+
+# 1. Abstract
+
+<br>
+Prospective cohort studies question the value of HDL-C for stroke risk prediction. We investigated the relationship between long-term functional recovery and changes in HDL protein composition and function (cholesterol efflux capacity, or CEC) in patients after acute ischemic stroke at two time points (24 h, 35 patients; 96 h, 20 patients) and in 35 control subjects. When compared to control subject after adjustments for sex and HDL-C levels, thirteen proteins some of which participate in acute phase response and platelet activation ( APMAP, GPLD1, APOE, IHH, ITIH4, SAA2, APOA4, CLU, SELL, ANTRX2, PON1, SERPINA1, and APOF) were significantly (adj. p<0.05) altered in stroke HDL at 96h. The first eight of these proteins were also significantly altered at 24h.  Consistent with inflammatory remodeling, CEC was reduced by 32% (P<0.001) at both time points. Baseline stroke severity adjusted regression model showed that changes within 96 hours post stroke in APOF, APOL1, APMAP, APOC4, APOM, PCYOX1, PON1, APOE, and PPBP correlate with stroke recovery scores (R2=0.37-0.75, adjusted p<0.05).  APOF (R2=0.74), and APOL1 (R2=0.60) continued to significantly correlate with recovery scores after accounting for tPA treatment. We conclude that changes in HDL associated proteins during early acute phase of stroke associate with recovery. 
+<br>
+<br>
+This document contains the statistical analysis performed on general patient demographics, patient plasma lipid measures, patient cholesterol efflux capacity, stroke severity and recovery scores, and patient HDL proteomics data. Patient demographics and plasma measures are documented in Supplemental Table 1, and proteomic assay data are documented in Supplemental Table 1, and more thoroughly in Supplemental Table 3. All proteomics data is also deposited in Panorama Public with the ProteomeExchange identifier PXD015001. 
+<br>
+
+### Workspace set-up & Dataframe import 
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+#Packages used in this analysis:
+library(ggplot2, quietly = TRUE)
+library(RColorBrewer, quietly = TRUE)
+library(dplyr, quietly = TRUE)
+library(grid, quietly = TRUE)
+library(gridExtra, quietly = TRUE)
+library(pheatmap, quietly = TRUE)
+library(psych, quietly = TRUE)
+library(Hmisc, quietly = TRUE)
+library(corrplot, quietly = TRUE)
+library(mclust, quietly = TRUE)
+library(purrr, quietly = TRUE)
+library(tidyr, quietly = TRUE)
+library(plyr, quietly = TRUE)
+library(Gmisc, quietly = TRUE)
+library(magrittr, quietly = TRUE)
+library(limma, quietly = TRUE)
+library(scales, quietly=TRUE)
+library(stargazer, quietly = TRUE)
+library(knitr, quietly = TRUE)
+library(kableExtra, quietly = TRUE)
+library(statmod, quietly = TRUE)
+library(xlsx, quietly=TRUE)
+```
+
+
+```{r}
+#First read in the 'metadata' stored in supplemental Table 1, sheet 2
+#Since the read.xlsx has issues with determining the class of each column they are specified
+m <- as.data.frame(read.xlsx2("SupplementalTable_1.xlsx", 2, header=TRUE, 
+                  colClasses =  c("Sample_no."="numeric", "Sex"="character",
+                                        "Age_blood"="numeric","Group"="character", 
+                                        "Stroke"="numeric", "Pair"="character", 
+                                        "Pair_ID"="character", "Ischemic_Type"="character", 
+                                        "tPa"="character", "Thrombectomy"="character", 
+                                        "TICIB."="character", "Hour"="numeric", 
+                                        "Cholesterol"="numeric", "Triglycerides"="numeric", 
+                                        "HDLC"="numeric", "LDLC"="numeric", "Statin"="character",
+                                        "NIHSS_baseline"="numeric", "NIHSS_3mo"="numeric", 
+                                        "mRS"="numeric", "CEC"="numeric")))
+
+#Now read in the protein assay data, stored in supplemental Table 1, sheet 3
+p <- read.xlsx2("SupplementalTable_1.xlsx", 3, header=TRUE, 
+                colClasses = c("numeric", "character", "character", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric", "numeric", 
+                               "numeric", "numeric", "numeric", "numeric"))
+
+#for data wrangling I choose to combine everything into one large table
+all <- as.data.frame(cbind(m, p))
+
+#This removes a redundant column that appeared in both tables
+#It also removes a sample that is a 96 hour sample with no paired 24 hour
+#The 24 hour sample that corresponds was not analyzed by mass spec due to sample handling issues
+all <- all[-1,-22]
+#3 proteins analyzed by mass spec assay had to high of variance in system suitability replicates
+#For specifics; see supplemental Figure 1.
+#Therefore, I also remove these so they don't have a chance of being included in any analysis.
+all$HP <- NULL
+all$GC <- NULL
+all$SAA4 <- NULL
+```
+
+<br>  
+
+# 2. Demographic information
+
+## Table 1: Non-stroke v Stroke sample demographics {.tabset}
+
+Because the some of the demographic statistics are only applicable to certain groups, multiple tables are generated here and then compiled/merged into Table 1 in excel for the final manuscript table (for ease of formatting).
+
+```{r}
+#Creating subsets of the metadata for the 
+meta_all <- as.data.frame(all[1:23])
+
+#metadata dataframe for the 24h stroke samples
+meta24 <- select(filter(meta_all, Group=="S24"), c(Sex, Hour, Age_blood, Group, 
+                              Cholesterol, Triglycerides, HDLC, LDLC, Statin, 
+                              NIHSS_baseline, NIHSS_3mo, mRS, CEC, Ischemic_Type, 
+                              tPa, Thrombectomy, TICI2B)) 
+
+#metadata dataframe for the non-stroke 'control' samples
+metaC <- select(filter(meta_all, Group=="C"), c(Sex, Hour, Age_blood, Group, 
+                               Cholesterol, Triglycerides, HDLC, LDLC, Statin, 
+                               NIHSS_baseline, NIHSS_3mo, mRS, CEC, Ischemic_Type, 
+                               tPa, Thrombectomy, TICI2B))
+
+#metadata dataframe for the 96h stroke samples
+meta96 <- select(filter(meta_all, Group=="S96"), c(Sex, Hour, Age_blood, Group, 
+                              Cholesterol, Triglycerides, HDLC, LDLC, Statin, 
+                              NIHSS_baseline, NIHSS_3mo, mRS, CEC, Ischemic_Type, 
+                              tPa, Thrombectomy, TICI2B))
+
+#metadata dataframe for both the 24h and 96h stroke samples
+meta_stroke <- rbind(meta24, meta96)
+
+#metadata dataframe for both the 24h and control samples
+meta <- rbind(meta24, metaC)
+```
+
+
+### Non-stroke control vs. 24 hr statistics
+
+```{r message=FALSE}
+#Function to write out statistics: number of samples in each category & (percent of total) -or- mean & (sd)
+getTable1Stats <- function(x, digits = 2, ...){
+  getDescriptionStatsBy(x = x, 
+                        by = meta$Group,
+                        digits = digits,
+                        continuous_fn = describeMean,
+                        header_count = TRUE,
+                        #statistics = TRUE,
+                        ...)
+  
+}
+
+#generating lists for each category of interest
+t1 <- list()
+
+t1[["Sex"]] <- getTable1Stats(meta$Sex)
+t1[["Statin"]] <- getTable1Stats(meta$Statin)
+t1[["Age"]] <- getTable1Stats(meta$Age_blood)
+t1[["Cholesterol"]] <- getTable1Stats(meta$Cholesterol)
+t1[["HDLC"]] <- getTable1Stats(meta$HDLC)
+t1[["LDLC"]] <- getTable1Stats(meta$LDLC)
+t1[["Triglycerides"]] <- getTable1Stats(meta$Triglycerides)
+
+#merging statistics into a output table
+mergeDesc(t1, 
+          htmlTable_args = list(css.rgroup=""))
+```
+
+### Stroke 24 hr vs. 96 hr stroke related statistics
+
+```{r}
+#Function to write out statistics: number of samples in each category & (percent of total) -or- mean & (sd)
+#This time for just stroke samples
+getTable1Stats <- function(x, digits = 2, ...){
+  getDescriptionStatsBy(x = x, 
+                        by = meta_stroke$Group,
+                        digits = digits,
+                        continuous_fn = describeMedian,
+                        header_count = TRUE,
+                        #statistics = TRUE,
+                        ...)
+}
+
+#generating lists for each category of interest
+t2 <- list()
+
+t2[["Ischemic Type"]] <- getTable1Stats(meta_stroke$Ischemic_Type)
+t2[["tPA"]] <- getTable1Stats(meta_stroke$tPa)
+t2[["Thrombectomy"]] <- getTable1Stats(meta_stroke$Thrombectomy)
+t2[["TICI2B"]] <- getTable1Stats(meta_stroke$TICI2B)
+t2[["NIHSS-baseline"]] <- getTable1Stats(meta_stroke$NIHSS_baseline)
+t2[["NIHSS-3mo"]] <- getTable1Stats(meta_stroke$NIHSS_3mo)
+t2[["mRS"]] <- getTable1Stats(meta_stroke$mRS)
+
+#merging statistics into a output table
+mergeDesc(t2, 
+          htmlTable_args = list(css.rgroup=""))
+```
+
+### All 3 groups
+
+```{r}
+#Function to write out statistics: number of samples in each category 
+# & (percent of total) -or- mean & (sd)
+
+#This time for statistics applicable to all 3 groups: specifically for lipid measures
+getTable1Stats <- function(x, digits = 2, ...){
+  getDescriptionStatsBy(x = x, 
+                        by = meta_all$Group,
+                        digits = digits,
+                        continuous_fn = describeMean,
+                        header_count = TRUE,
+                        #statistics = TRUE,
+                        ...)
+  
+}
+
+#generating lists for each category of interest
+t3 <- list()
+
+t3[["Cholesterol"]] <- getTable1Stats(meta_all$Cholesterol)
+t3[["HDLC"]] <- getTable1Stats(meta_all$HDLC)
+t3[["LDLC"]] <- getTable1Stats(meta_all$LDLC)
+t3[["Triglycerides"]] <- getTable1Stats(meta_all$Triglycerides)
+
+#merging statistics into a output table
+mergeDesc(t3, 
+          htmlTable_args = list(css.rgroup=""))
+```
+
+
+# 3. HDL protein differential abundance testing
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+#Since there are 3 groups, and 2 of the groups are paired, 
+#this makes data a bit more complicated to handle, so I just generated 
+#new dataframes instead of having to wrangle the data with other methods. 
+
+## Paired stroke sample dataframe generation
+PS24 <- all %>% filter(Pair=="Yes" & Group=="S24") %>% droplevels()
+PS24rownames <- PS24[,1]
+rownames(PS24) <- PS24rownames
+
+PS96 <- all %>% filter(Pair=="Yes" & Group=="S96") %>% droplevels()
+PS96rownames <- PS96[,1]
+rownames(PS96) <- PS96rownames
+
+paired <- rbind(PS24, PS96)
+
+#The next 3 sets are all the 24h vs all the 96h measures, 
+#all the control vs all the 24h measures, and all the control 
+# vs all the 96 h measures.
+C <- all %>% filter(Group=="C") %>% droplevels()
+Crownames <- C[,1]
+rownames(C) <- Crownames
+
+S24 <- all %>% filter(Group=="S24") %>% droplevels()
+S24rownames <- S24[,1]
+rownames(S24) <- S24rownames
+
+#dataframes for significance testing
+CvS24 <- rbind(C,S24)
+CvS96 <- rbind(C,PS96)
+all <- rbind(C,S24,PS96)
+
+
+#log2 transforming the paired stroke dataframe
+logP <- as.data.frame(cbind(paired[,1:23], log2(paired[,24:ncol(paired)])))
+
+#log2 transforming the control & stroke dataframe
+logAll <- as.data.frame(cbind(all[,1:23], log2(all[,24:ncol(all)])))
+
+#log2 transforming the control & stroke dataframe
+logCvS24 <- as.data.frame(cbind(CvS24[,1:23], log2(CvS24[,24:ncol(CvS24)])))
+
+#log2 transforming the control & stroke dataframe
+logCvS96 <- as.data.frame(cbind(CvS96[,1:23], log2(CvS96[,24:ncol(CvS96)])))
+```
+<br>
+<br>
+
+
+## Shapiro-Wilk test for normality of each protein
+
+A caveat to targeted mass spectrometry measurements is that the data isn't necessarily normally distributed - in part due to fundamentally how the measurements are made. However, within the proteomics community it is standard to use parametric tests for differential abundance testing. In this assay we observe several cases in which there are outlier low abundance measurments below the otherwise fairly normal distribution. This is due to integrating the same transition ions across all samples, including ones lacking of signal. In that case we are likely integrating background noise. Another cause of these outlier measurements could be due to them falling below the limit of quantification or limit of detection. In that case we are integrating the actual signal, but it is lower than expected for a true linear scale. 
+
+<br>  
+__Shapiro Wilk statistics for non-stroke control and 24 h post stroke samples__
+```{r}
+#Shapiro-Wilk test
+#perform the test for each protein measure
+p_swnorm <- lapply(logCvS24[, 24:length(logCvS24)], 
+                   function(x) shapiro.test(x))
+#retrieve the W statistic
+results_w <- ldply(p_swnorm, function(x) x$statistic)
+#retrieve the p-value
+results_p <- ldply(p_swnorm, function(x) x$p.value)
+
+#Report the mean and median p-value, the number and 
+#percent with p-values greater than 0.05:
+mean_pC24 <- format(mean(results_p$V1), digits=3, format="f")
+median_pC24 <- format(median(results_p$V1), digits=2, format="f")
+count_C24 <- with(results_p, sum(V1>0.05))
+count_tC24 <- length(results_p$V1)
+pct_normC24 <- format((count_C24/count_tC24*100), 
+                      digits=3, format="f")
+
+#Making a table of the statistics
+results_swnorm <- data.frame(cbind("protein" = results_w$.id, 
+                                   "W" = results_w$W, 
+                                   "Pvalue" = results_p$V1))
+kable(results_swnorm) %>%
+  kable_styling() %>%
+  scroll_box(width = "75%", height = "300px")
+```
+<br>  
+For the control and 24 h post stroke protein measures __`r pct_normC24`__ percent had p-values above 0.05; the mean p-value was __`r mean_pC24`__ and median p-value was __`r median_pC24`__. 4 of the 8 proteins found to be significantly different below are normally distributed.
+
+<br> 
+
+__Shapiro Wilk statistics for non-stroke control and 96 h post stroke samples__
+
+```{r}
+#Shapiro-Wilk test
+p_swnorm <- lapply(logCvS96[, 24:length(logCvS96)], 
+                   function(x) shapiro.test(x))
+results_w <- ldply(p_swnorm, function(x) x$statistic)
+results_p <- ldply(p_swnorm, function(x) x$p.value)
+
+#Report the mean and median p-value:
+mean_pC96 <-format(mean(results_p$V1), digits=3, format="f")
+median_pC96 <-format(median(results_p$V1), digits=2, format="f")
+count_C96 <- with(results_p, sum(V1>0.05))
+count_tC96 <- length(results_p$V1)
+pct_normC96 <- format((count_C96/count_tC96*100), 
+                      digits=3, format="f")
+
+#Making a table of the statistics
+results_swnorm <- data.frame(cbind("protein" = results_w$.id, 
+                                   "W" = results_w$W, 
+                                   "Pvalue" = results_p$V1))
+kable(results_swnorm) %>%
+  kable_styling() %>%
+  scroll_box(width = "75%", height = "300px")
+```
+
+<br>  
+For the control and 96 h post stroke protein measures __`r pct_normC96`__ percent had p-values above 0.05; the mean p-value was __`r mean_pC96`__ and median p-value was __`r median_pC96`__. 7 of the 12 proteins found to be significantly different below are normally distributed.
+
+<br>
+
+__Shapiro Wilk statistics for paired 24 h and 96 h post stroke samples__
+
+```{r}
+#Shapiro-Wilk test
+p_swnorm <- lapply(logP[, 24:length(logP)], function(x) shapiro.test(x))
+results_w <- ldply(p_swnorm, function(x) x$statistic)
+results_p <- ldply(p_swnorm, function(x) x$p.value)
+
+#Report the mean and median p-value:
+mean_pP <- format(mean(results_p$V1), digits=3, format="f")
+median_pP <- format(median(results_p$V1), digits=2, format="f")
+count_P <- with(results_p, sum(V1>0.05))
+count_tP <- length(results_p$V1)
+pct_normP <- format((count_P/count_tP*100), 
+                    digits=3, format="f")
+
+#Making a table of the statistics
+results_swnorm <- data.frame(cbind("protein" = results_w$.id, 
+                                   "W" = results_w$W, 
+                                   "Pvalue" = results_p$V1))
+kable(results_swnorm) %>%
+  kable_styling() %>%
+  scroll_box(width = "75%", height = "300px")
+```
+
+<br>  
+For the 24 h and 96 h post stroke protein measures __`r pct_normP`__ percent had p-values above 0.05; the mean p-value was __`r mean_pP`__ and median p-value was __`r median_pP`__. Both proteins found to be different by paired t-test analysis are normally distributed (APOF and ANTXR2).
+
+<br>
+<br>
+
+## Table 2. Significant HDL protein abundance changes
+
+### Paired t test for 24h - 96 h paired samples
+
+```{r}
+#Since a paired t.test will not accomodate missing values, several proteins will be removed from this analysis
+non_missing <- as.data.frame(select(logP, -"LPA", -"ITIH4", -"SAA1"))
+
+p_t.test <- lapply(non_missing[, 24:length(non_missing)], 
+                   function(x) t.test(x ~ non_missing$Group, paired = TRUE))
+results_p_t.test <- ldply(p_t.test, function(x) x$p.value)
+
+results_p_t.test$adj.P.Val <- p.adjust(results_p_t.test$V1, 
+                                       method="BH")
+results_p_t.test <-rename(results_p_t.test, c(".id"= "Protein", 
+                                              "V1"="P.Value"))
+
+count_pair <- with(results_p_t.test, sum(adj.P.Val<0.05))
+
+write.csv(results_p_t.test, file="paired_ttest.csv")
+
+kable(results_p_t.test, 
+      caption="Paired t-test statistics for 24 h and 96 h post stroke samples") %>%
+  kable_styling() %>%
+  scroll_box(width = "75%", height = "300px")
+```
+<br>  
+From paired t.test analysis `r count_pair` proteins are significantly different between the two time points.
+<br>  
+
+
+### Linear model for each protein
+
+#### Model: ~0 + Group + Sex + HDLC {.tabset}
+
+__Linear model statistics for 24h vs non-stroke control protein differences__
+
+
+
+```{r}
+all1 <- all
+rownames(all1) <- all1$ID
+
+#Removing sample that has NA indicated for sex
+all1 <- all1[-9,]
+all_mat <- as.matrix(log2(all1[, 24:length(all1)]))
+rownames(all_mat) <- all1$ID
+tmat <- t(all_mat)
+
+meta <- as.data.frame(all1[, 1:23])
+rownames(meta) <- all1$ID
+
+#Model for finding differences due to group with sex and HDLC covariates
+design <- model.matrix(~0 + Group + Sex + HDLC, data = meta)
+fit <- lmFit(tmat, design = design)
+
+#GroupS24 - GroupS96 contrast not made by linear model due to their paired nature.
+contrasts <- makeContrasts(GroupS24 - GroupC, GroupS96 - GroupC, 
+                           levels = design)
+fit1 <- contrasts.fit(fit, contrasts)
+fit1 <- eBayes(fit1,robust = TRUE,trend = TRUE)
+out1 <- lapply(1:ncol(contrasts), function(x) topTable(fit1, coef = x, 
+                                                       n= Inf, 
+                                                       adjust = "BH", 
+                                                       sort.by = "p")[,-c(3,6)])
+
+#Number of significant differences
+num <- sapply(out1,function(x) sum(x$adj.P<0.05))
+
+# C vs S24 results
+S24vC <- out1[[1]]
+count_24vC <- with(S24vC, sum(adj.P.Val<0.05))
+write.csv(S24vC, file="S24vC.csv")
+
+# C vs S96 results
+S96vC <- out1[[2]]
+count_96vC <- with(S96vC, sum(adj.P.Val<0.05))
+write.csv(S96vC, file="S96vC.csv")
+
+#Table of the C v 24 h post stroke results
+kable(S24vC, caption="Model: ~0 + Group + Sex + HDLC") %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+For this comparison `r count_24vC` proteins are significantly different with adjusted P-values<0.05
+<br>  
+<br>  
+
+__Linear model statistics for 96h vs non-stroke control protein differences__
+
+```{r}
+#Table of the C v 96 h post stroke results
+kable(S96vC, caption="Model: ~0 + Group + Sex + HDLC") %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+For this comparison `r count_96vC` proteins are significantly different with adjusted P-values<0.05
+<br>
+<br>
+
+
+## Figure 2. Significantly changing HDL protein abundance distributions
+
+The log2 relative intensity is plotted by group for the 8 proteins found to be significantly changing both between the 24 h and 96 h post stroke and non-stroke control.
+
+```{r fig.height=6, fig.width=12, warning = FALSE, message = FALSE, error=FALSE}
+allViolinplot <- function(a, b){
+  cols <- c("C"="#202f52", "S24" = "goldenrod1", "S96" = "firebrick3")
+  ggplot(a, aes(x = factor(Group), y = b, fill = Group)) +
+    geom_violin(alpha=0.15, width=0.8) +
+    geom_boxplot(width=0.4, alpha = 0.8) +
+    geom_jitter(fill = "black", size = 2, shape = 21, 
+                position = position_jitter(0.1), alpha=0.5) +
+    scale_fill_manual(values=cols) +
+    scale_x_discrete(limits=c("C","S24","S96")) +
+    labs(y="log2 relative intensity") + 
+    theme_bw() +
+    theme(legend.position = "none", axis.title.x = element_blank())
+}
+
+#Violin plots for the 8 significantly changing proteins from non-stroke to 24 h post-stroke
+va <- allViolinplot(logAll, logAll$APMAP) +
+  ggtitle("APMAP")
+
+vd <- allViolinplot(logAll, logAll$GPLD1) + 
+  ggtitle("GPLD1") 
+
+vb <- allViolinplot(logAll, logAll$APOE) + 
+  ggtitle("APOE")
+
+vc <- allViolinplot(logAll, logAll$IHH) + 
+  ggtitle("IHH")
+
+vg <- allViolinplot(logAll, logAll$ITIH4) +
+  ggtitle("ITIH4")
+
+ve <- allViolinplot(logAll, logAll$SAA2) +
+  ggtitle("SAA2")
+
+vf <- allViolinplot(logAll, logAll$APOA4) +
+  ggtitle("APOA4") 
+
+vh <- allViolinplot(logAll, logAll$CLU) +
+  ggtitle("CLU") 
+
+
+grid.arrange(va,vb,vc,vd,ve,vf,vg,vh, ncol=4)
+```
+
+<br>
+<br>
+
+## Figure 3. Paired significantly changing HDL protein abundances
+
+The log2 relative intensity is plotted by group for the proteins found to be significantly changing both between the 24 h and 96 h post stroke paired samples. Black lines connect the paired samples between the two time point measurements.
+
+```{r fig.height=4, fig.width=12}
+
+
+connected_boxplot <- function(a,b,c,d){ggplot(a, aes(x=b, y = c)) +
+    geom_boxplot(aes(fill=b, group=b), alpha=0.8, 
+                 width=0.5, show.legend = FALSE) +
+    theme(legend.position = "none", axis.title.x = element_blank()) +
+    geom_line(alpha=0.5, size=0.6, aes(group = d)) +
+    geom_point(size=2, alpha=0.6, aes(group=b), 
+               position = position_dodge(width=0.75)) +
+    scale_fill_manual(values = c("goldenrod1","firebrick3")) +
+    labs(y="log2 relative intensity") + 
+    theme_bw() +
+    theme(axis.title.x = element_blank())
+}
+
+a <- connected_boxplot(logP, logP$Group, logP$ANTXR2, logP$Pair_ID) + 
+  ggtitle("ANTXR2")
+
+b <- connected_boxplot(logP, logP$Group, logP$APOF, logP$Pair_ID) + 
+  ggtitle("APOF")
+
+c <- connected_boxplot(logP, logP$Group, logP$SAA2, logP$Pair_ID) + 
+  ggtitle("SAA2") + scale_y_continuous(limits = c(16.5, 28.8))
+
+grid.arrange(a,b,c, ncol=3)
+```
+
+
+<br>
+
+# 4. Correlation testing for post stroke changes
+
+__Log2FC values calculated for all protein measures in paired 24 h and 96 h samples__
+
+A new dataframe is created containing the log2FC of proteins for all the paired samples. These will be used for correlation and linear regression analysis. 
+```{r}
+#Separating out the two time points of paired data
+P24 <- logP %>% filter(Group=="S24")
+P24rownames <- P24[,1]
+rownames(P24) <- P24rownames
+#renaming the measures to include which time point they belong to
+colnames(P24) <- paste("S24", colnames(P24), sep = "_")
+
+P96 <- logP %>% filter(Group=="S96")
+P96rownames <- P96[,1]
+rownames(P96) <- P96rownames
+colnames(P96) <- paste("S96", colnames(P96), sep = "_")
+
+#combining the renamed subsets
+l_paired <- cbind(P24, P96)
+
+#Actually calculating the log2FC of the pairs for each protein 
+#(there's probably a better/more elegant way to do this, 
+# but I never went back to figure it out... this works tho lol)
+lfc <- data.frame(l_paired$S24_Pair_ID)
+lfc$SERPINA1 <- log2(l_paired$S96_SERPINA1/l_paired$S24_SERPINA1)
+lfc$ALB <- log2(l_paired$S96_ALB/l_paired$S24_ALB)
+lfc$AMBP <- log2(l_paired$S96_AMBP/l_paired$S24_AMBP)
+lfc$ANTXR2 <- log2(l_paired$S96_ANTXR2/l_paired$S24_ANTXR2)
+lfc$APMAP <- log2(l_paired$S96_APMAP/l_paired$S24_APMAP)
+lfc$LPA <- log2(l_paired$S96_LPA/l_paired$S24_LPA)
+lfc$APOA1 <- log2(l_paired$S96_APOA1/l_paired$S24_APOA1)
+lfc$APOA2 <- log2(l_paired$S96_APOA2/l_paired$S24_APOA2)
+lfc$APOA4 <- log2(l_paired$S96_APOA4/l_paired$S24_APOA4)
+lfc$APOB <- log2(l_paired$S96_APOB/l_paired$S24_APOB)
+lfc$APOC3 <- log2(l_paired$S96_APOC3/l_paired$S24_APOC3)
+lfc$APOC4 <- log2(l_paired$S96_APOC4/l_paired$S24_APOC4)
+lfc$APOD <- log2(l_paired$S96_APOD/l_paired$S24_APOD)
+lfc$APOE <- log2(l_paired$S96_APOE/l_paired$S24_APOE)
+lfc$APOF <- log2(l_paired$S96_APOF/l_paired$S24_APOF)
+lfc$APOL1 <- log2(l_paired$S96_APOL1/l_paired$S24_APOL1)
+lfc$APOM <- log2(l_paired$S96_APOM/l_paired$S24_APOM)
+lfc$CAMP <- log2(l_paired$S96_CAMP/l_paired$S24_CAMP)
+lfc$CLU <- log2(l_paired$S96_CLU/l_paired$S24_CLU)
+lfc$C3 <- log2(l_paired$S96_C3/l_paired$S24_C3)
+lfc$PPBP <- log2(l_paired$S96_PPBP/l_paired$S24_PPBP)
+lfc$AHSG <- log2(l_paired$S96_AHSG/l_paired$S24_AHSG)
+lfc$FGA <- log2(l_paired$S96_FGA/l_paired$S24_FGA)
+lfc$HPR <- log2(l_paired$S96_HPR/l_paired$S24_HPR)
+lfc$IHH <- log2(l_paired$S96_IHH/l_paired$S24_IHH)
+lfc$ITIH4<- log2(l_paired$S96_ITIH4/l_paired$S24_ITIH4)
+lfc$LCAT <- log2(l_paired$S96_LCAT/l_paired$S24_LCAT)
+lfc$SELL <- log2(l_paired$S96_SELL/l_paired$S24_SELL)
+lfc$PCYOX1<- log2(l_paired$S96_PCYOX1/l_paired$S24_PCYOX1)
+lfc$GPLD1 <- log2(l_paired$S96_GPLD1/l_paired$S24_GPLD1)
+lfc$PF4 <- log2(l_paired$S96_PF4/l_paired$S24_PF4)
+lfc$PLTP <- log2(l_paired$S96_PLTP/l_paired$S24_PLTP)
+lfc$PON1 <- log2(l_paired$S96_PON1/l_paired$S24_PON1)
+lfc$PON3 <- log2(l_paired$S96_PON3/l_paired$S24_PON3)
+lfc$RBP4 <- log2(l_paired$S96_RBP4/l_paired$S24_RBP4)
+lfc$SAA1 <- log2(l_paired$S96_SAA1/l_paired$S24_SAA1)
+lfc$SAA2 <- log2(l_paired$S96_SAA2/l_paired$S24_SAA2)
+lfc$TTR <- log2(l_paired$S96_TTR/l_paired$S24_TTR)
+
+meta_p <- logP[1:20,1:23]
+lfc_df <- cbind(meta_p, lfc)
+
+#generating a table for manual inspection if so inclined
+kable(lfc_df) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>  
+<br>  
+
+### Shapiro-Wilk test for normality of each protein log2FC
+
+```{r}
+#Shapiro-Wilks test
+p_swnorm <- lapply(lfc_df[, 25:length(lfc_df)], function(x) shapiro.test(x))
+results_w <- ldply(p_swnorm, function(x) x$statistic)
+results_p <- ldply(p_swnorm, function(x) x$p.value)
+
+#Report the mean and median p-value, the number and 
+# percent with p-values greater than 0.05:
+mean_FC <- format(mean(results_p$V1), digits=3, format="f")
+median_FC <- format(median(results_p$V1), digits=3, format="f")
+count_FC <- with(results_p, sum(V1>0.05))
+count_tFC <- length(results_p$V1)
+pct_normFC <- format((count_FC/count_tFC*100), 
+                     digits=3, format="f")
+
+#Making a table of the statistics
+results_swnorm <- data.frame(cbind("protein" = results_w$.id, 
+                                   "W" = results_w$W, 
+                                   "Pvalue" = results_p$V1))
+kable(results_swnorm) %>%
+  kable_styling() %>%
+  scroll_box(width = "75%", height = "300px")
+```
+
+<br>  
+For the control and 24 h post stroke protein measures __`r pct_normFC`__ percent had p-values above 0.05; the mean p-value was __`r mean_FC`__ and median p-value was __`r median_FC`__. In regression analysis APOF had the strongest signal, and is normally distributed.
+
+<br> 
+
+### Shapiro-Wilk test for normality of each plasma lipid measure
+
+```{r}
+#Shapiro-Wilks test
+plipid <- data.frame("Cholesterol"=lfc_df$Cholesterol, 
+                     "Triglycerides"=lfc_df$Triglycerides, 
+                     "HDLC"=lfc_df$HDLC, 
+                     "LDLC"=lfc_df$LDLC, 
+                     "CEC"=lfc_df$CEC)
+p_swnorm <- lapply(plipid, function(x) shapiro.test(x))
+results_w <- ldply(p_swnorm, function(x) x$statistic)
+results_p <- ldply(p_swnorm, function(x) x$p.value)
+
+#Making a table of the statistics
+results_swnorm <- data.frame(cbind("protein" = results_w$.id, 
+                                   "W" = results_w$W, 
+                                   "Pvalue" = results_p$V1))
+kable(results_swnorm) %>%
+  kable_styling(full_width = FALSE, position = "left")
+```
+
+Both triglycerides and LDLC measures are non-normally distributed.
+<br>  
+<br>  
+
+## Figure 4. Correlation plot of all patient measures
+
+### Figure 4a. Correlation plot of measures
+
+
+```{r fig.width=10, fig.height=10}
+#subset dataframe for clustering
+lfc_clus <- lfc_df
+
+#Not all data columns are useful in a correlation or clustering analysis; e.g. identifiers
+lfc_clus <- select(lfc_clus, -"Pair", -"Pair_ID", 
+                   -"Stroke", -"Hour", -"Group", 
+                   -"l_paired.S24_Pair_ID", -"Sample_no.",
+                   -"MS_RunID", -"MS_Batch")
+
+lfc_matrix <- data.matrix(lfc_clus[,1:ncol(lfc_clus)])
+
+# Calculating correlation values
+# r-value: Pearson + Benjamini-Hochberg
+lFC.pears.BH<-corr.test(lfc_matrix, use = "complete",
+                        method="pearson",adjust="BH",alpha=.05)
+lFC.pval.BH_pears<-lFC.pears.BH$p
+lFC.rval.BH_pears<-lFC.pears.BH$r
+
+#From corrplot package
+corrplot(lFC.rval.BH_pears, is.corr=FALSE, order="hclust", 
+         tl.col = "black", 
+         method = "square", 
+         tl.cex = 0.75)
+```
+
+### Figure 4b. Hierarchical clustering of measures
+
+Hierarchical clustering with the complete method
+```{r fig.width=13}
+cor.pear<-rcorr(as.matrix(lfc_matrix), type="pearson")
+hclust.x<-hclust((as.dist(1-abs(cor.pear$r))),method="complete")
+par(cex=1.2)
+plot(hclust.x,ylab = "1-|r|",xlab="",main="")
+```
+
+<br>
+<br>
+
+# 5. Stroke recovery linear regression analysis
+
+In this section we are examining whether any of the protein changes following stroke show a relationship with patient's stroke recovery - as assessed at 3 mos post stroke with NIHSS score. 
+
+## Table 3. HDL protein logFC from 24h to 96 h post stroke with significant correlation with stroke recovery
+
+<br>  
+
+__Model: NIHSS_3mo ~ NIHSS_baseline + Protein Log2FC__ This model includes the baseline NIHSS score assessed on patient presentation with Stroke.
+
+```{r}
+#This function returns all the statistics for the linear models as a dataframe - used for all downstream lm results
+lm_out <- function(fit) {
+    if (class(fit) != "lm") stop("Not an object of class 'lm' ")
+    f <- summary(fit)$fstatistic
+    p <- pf(f[1],f[2],f[3],lower.tail=F)
+    attributes(p) <- NULL
+    i <- summary(fit)$coef[1]
+    se <- summary(fit)$coef[1,2]
+    r2 <- summary(fit)$adj.r.squared
+    f <- summary(fit)$fstatistic[1]
+    df <- summary(fit)$fstatistic[3]
+    out <- cbind(i, se, r2, p, f, df)
+    return(out)
+    out_df <- rbind(out_df, df)
+}
+
+#Initializing an output dataframe to contain all the linear model results
+out_df <- data.frame()
+
+#Loop to apply this model to each protein logFC measure
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + i, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+#renaming & formatting the results dataframe to save
+lm_NIH3_baseline.Prot <- out_df
+rn <- data.frame(colnames(lfc_df[,25:ncol(lfc_df)]))
+rownames(lm_NIH3_baseline.Prot) <- rn[,1]
+
+#multiple testing correction since we are testing 
+# the model for all protein log2FC measures
+lm_NIH3_baseline.Prot$p.adj <- p.adjust(lm_NIH3_baseline.Prot$p, method = "BH")
+
+count_sig_t4 <- with(lm_NIH3_baseline.Prot, sum(p.adj<0.05))
+
+#Results table
+kable(lm_NIH3_baseline.Prot) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_NIH3_baseline.Prot, file="lm_3mos_bs_Prot.csv")
+```
+
+Only __`r count_sig_t4`__ significant correlations are reported in Table 4. All protein statistics are reported in Supplemental Table 5, along with the other linear models examined.
+<br>
+<br>  
+
+
+# 6. Cholesterol efflux capacity analysis
+
+## Table 4: Cholesterol Efflux analysis
+
+Cholesterol efflux capacity (CEC) was measured by J774A.1 macrophage based assay, with results recorded as a percentage. The relationship of stroke status and cholesterol efflux capacity are assessed by linear model, with correction for HDL-cholesterol measures and sex, age, and LDL-cholesterol.
+
+```{r warning=FALSE, error=FALSE, message=FALSE, results='asis', width=6}
+fit1 = lm(CEC~Stroke+HDLC,
+          data=CvS24)
+
+fit2 = lm(CEC~Stroke+Sex+Age_blood+HDLC+LDLC,
+          data=CvS24)
+
+#html table with both CEC model statistics
+stargazer(fit1, fit2,
+          title="Linear Regression Results",
+          report="vcsp*",ci=TRUE,
+          keep.stat=c("n","rsq","adj.rsq","aic","ser","f"),
+          single.row = FALSE,type="html")
+```
+
+<br>  
+<br>
+
+## Figure 5. Cholesterol efflux distribution plot 
+
+Plotting the percent CEC distributions for each group.
+
+```{r message = FALSE, warning = FALSE, error=FALSE}
+#this plot function is found in section 3 for generation of Figure 2
+allViolinplot(all, all$CEC) + labs(y="cholesterol efflux capacity (%)")
+```
+
+<br>
+<br>
+
+# 7. Supplemental material
+
+
+## Supplemental Figure 1. Effect of normalization on N15 APOA1 spike-in variance distribution
+
+For this figure I used a Skyline generated .csv report with peptide integrated areas, background signal, sample total ion current (TIC), TIC mean normalization factors and values, and heavy APOA1 peptide mean normalization factors and values.
+
+<br>   
+
+In this dataset two different normalization strategies were assessed. Normalization of peptide intensity to total ion current was determined to be a better method for normalization, with it reducing the variance across system suitability replicates. These replicates are also called rotor control samples due to the nature of HDL isolation being limited to rotor batches for density gradient ultra-centrifugation.
+
+```{r warning = FALSE, error=FALSE, message=FALSE}
+#This is a modified skyline .csv report file. 
+#These rotor control samples are only analyzed here to demonstrate that the- 
+#mass spec data normalization improved data quality.
+RCdf <- as.data.frame(read.csv("RotorControl_PRM.csv"))
+
+#making a new identifier that incorporates both the peptide sequence and whether it was light or heavy
+RCdf$PepID =paste(RCdf$Peptide, RCdf$Isotope, sep="_")
+
+RCdf_CV <- select(RCdf, 
+                  'PepID', 'Background.subtracted', 
+                  'TIC_normalized_area', 
+                  'APOA1_normalized_area')
+RCdf_CV <- RCdf_CV %>% group_by(PepID) %>% 
+                          summarise_each(funs(mean, sd))
+
+#just a simple CV function
+CV_fun <- function(mean, sd){
+  (sd/mean)*100
+}
+
+#Calculating different CVs
+RCdf_CV$Background.subtracted_cv <- CV_fun(RCdf_CV$Background.subtracted_mean, 
+                                           RCdf_CV$Background.subtracted_sd)
+RCdf_CV$TIC_normalized_area_cv <- CV_fun(RCdf_CV$TIC_normalized_area_mean, 
+                                         RCdf_CV$TIC_normalized_area_sd)
+
+#Mean and median CVs across all peptides
+Pre_mean = mean(RCdf_CV$Background.subtracted_cv)
+Pre_med = median(RCdf_CV$Background.subtracted_cv)
+prem <- format(median(RCdf_CV$Background.subtracted_cv), digits=3, format="f")
+TIC_mean = mean(RCdf_CV$TIC_normalized_area_cv)
+TIC_med = median(RCdf_CV$TIC_normalized_area_cv)
+TICm <- format(median(RCdf_CV$TIC_normalized_area_cv), digits=3, format="f")
+
+#density plots for CV distribution
+ggplot(RCdf_CV) +
+  geom_density(aes(x=Background.subtracted_cv), 
+               colour='black', fill='orange', alpha=0.4) +
+  geom_density(aes(x=TIC_normalized_area_cv), 
+               colour='black', fill='dodgerblue3', alpha=0.4) +
+  geom_vline(xintercept=TIC_med, color='dodgerblue3', 
+             linetype='longdash', size=1) +
+  geom_vline(xintercept=Pre_med, color='orange', 
+             linetype='dashed', size=1) +
+  geom_text(aes(x=TIC_med, label="Post median\n", y=0.008), 
+            colour="dodgerblue3", angle=90, 
+            text=element_text(size=10)) +
+  geom_text(aes(x=Pre_med, label="Pre median\n", y=0.008), 
+            colour="goldenrod1", angle=90, 
+            text=element_text(size=10)) +
+  labs(x="Peptide %CV", y="Density") + 
+  ggtitle("Rotor control peptide %CV - Pre/Post-TIC normalization") +
+  theme_bw() +
+  scale_x_continuous(limits = c(0,55))
+```
+
+The median %CV prior to normalization was `r prem`, reduced to `r TICm` following total ion current normalization. Typically for targeted peptide assays CVs < 20% are preferred. 
+
+
+## Supplemental Table 4. Correlation results matrices
+
+The p values and r values corresponding to the large correlation plot in Figure 4 are compiled and written to .csv. Both the following tables were combined into a single excel workbook.
+
+__Pearson correlation r statistic matrix__
+```{r}
+write.csv(lFC.pval.BH_pears, "lFC_pvalBH_pears.csv", row.names=FALSE)
+write.csv(lFC.rval.BH_pears, "lFC_rvalBH_pears.csv", row.names=FALSE)
+
+kable(lFC.pval.BH_pears) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+<br>  
+<br>  
+__Pearson correlation adjusted P-value matrix__
+```{r}
+kable(lFC.rval.BH_pears) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>  
+<br>  
+
+
+
+## Supplemental Table 5. Linear regression statistics for HDL protein logFC and stroke recovery {.tabset}
+
+All linear models assessing protein log2FC following stroke and their relation to stroke recovery are recorded here. Models are tab separated into 3 main categories: NIHSS models - these assess protein relation to NIHSS scores at 3 months; mRS models - these assess protein relation to mRS scores at 3 months; and Age and Sex models - these are additional parameters examined in the review process. 
+
+### NIHSS models
+
+
+
+__Model: NIHSS_3mo ~ NIHSS_baseline + tPA + Protein Log2FC__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + tPa + i, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_NIH3_baseline.tPa.Prot <- out_df
+rownames(lm_NIH3_baseline.tPa.Prot) <- rn[,1]
+lm_NIH3_baseline.tPa.Prot$p.adj <- p.adjust(lm_NIH3_baseline.tPa.Prot$p, 
+                                            method = "BH")
+
+kable(lm_NIH3_baseline.tPa.Prot) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_NIH3_baseline.tPa.Prot, file="lm_3mos_bs_Prot_tpa.csv")
+```
+<br>  
+
+__Model: NIHSS_3mo ~ tPA + Protein LFC__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ tPa + i, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_NIH3_tPa.Prot <- out_df
+rownames(lm_NIH3_tPa.Prot) <- rn[,1]
+lm_NIH3_tPa.Prot$p.adj <- p.adjust(lm_NIH3_tPa.Prot$p, method = "BH")
+
+kable(lm_NIH3_tPa.Prot) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_NIH3_tPa.Prot, file="lm_3mos_Prot_tpa.csv")
+```
+
+<br>  
+
+### mRS models
+
+__Model: mRS ~ NIHSS_baseline + Protein LFC__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(mRS ~ NIHSS_baseline +i, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_mRS_baseline.Prot <- out_df
+rownames(lm_mRS_baseline.Prot) <- rn[,1]
+lm_mRS_baseline.Prot$p.adj <- p.adjust(lm_mRS_baseline.Prot$p, 
+                                       method = "BH")
+
+kable(lm_mRS_baseline.Prot) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_mRS_baseline.Prot, file="lm_mRS_baseline_Prot.csv")
+```
+<br>  
+
+__Model: mRS ~ NIHSS_baseline + tPA + Protein LFC__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(mRS ~ NIHSS_baseline + tPa + i, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_mRS_baseline.tPa.Prot <- out_df
+rownames(lm_mRS_baseline.tPa.Prot) <- rn[,1]
+lm_mRS_baseline.tPa.Prot$p.adj <- p.adjust(lm_mRS_baseline.tPa.Prot$p, 
+                                           method = "BH")
+
+kable(lm_mRS_baseline.tPa.Prot) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_mRS_baseline.tPa.Prot, file="lm_mRS_baseline_Prot_tpa.csv")
+```
+<br>  
+
+__Model: mRS ~ tPA + Protein LFC__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(mRS ~ tPa + i, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_mRS_tPa.Prot <- out_df
+rownames(lm_mRS_tPa.Prot) <- rn[,1]
+lm_mRS_tPa.Prot$p.adj <- p.adjust(lm_mRS_tPa.Prot$p, method = "BH")
+
+kable(lm_mRS_tPa.Prot) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_mRS_tPa.Prot, file="lm_mRS_tpa_Prot.csv")
+```
+<br>  
+
+### Age and Sex models {.tabset}
+
+The influence of other covariates, such as age and sex, and their impact on the association with protein change and stroke recovery scores at 3 months were of interest to reviewers. Here are various combinations of age and sex with our previously examined covariates - tPA status and NIHSS score at baseline.
+
+#### Models with just protein, age, and sex
+
+__Statistics for Model: NIHSS_3mo ~ Protein LFC + Sex__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ i + Sex, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.sex <- out_df
+rownames(lm_Prot.sex) <- rn[,1]
+lm_Prot.sex$p.adj <- p.adjust(lm_Prot.sex$p, method = "BH")
+
+kable(lm_Prot.sex) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.sex, file="lm_Prot_sex.csv")
+```
+
+__Statistics for Model: NIHSS_3mo ~ Protein LFC + Age__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ i + Age_blood, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.age <- out_df
+rownames(lm_Prot.age) <- rn[,1]
+lm_Prot.age$p.adj <- p.adjust(lm_Prot.age$p, method = "BH")
+
+kable(lm_Prot.age) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.age, file="lm_Prot_age.csv")
+```
+
+__Statistics for model: NIHSS_3mo ~ Protein LFC + Age + Sex__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ i + Age_blood + Sex, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.sex.age <- out_df
+rownames(lm_Prot.sex.age) <- rn[,1]
+lm_Prot.sex.age$p.adj <- p.adjust(lm_Prot.sex.age$p, method = "BH")
+
+kable(lm_Prot.sex.age) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.sex.age, file="lm_Prot_sex_age.csv")
+```
+
+#### Models + NIHSS baseline scores
+
+__Statistics for Model: NIHSS_3mo ~ NIHSS_baseline + Protein LFC + Sex__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + i + Sex, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.sex <- out_df
+rownames(lm_Prot.sex) <- rn[,1]
+lm_Prot.sex$p.adj <- p.adjust(lm_Prot.sex$p, method = "BH")
+
+kable(lm_Prot.sex) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.sex, file="lm_3mos_Prot_sex.csv")
+```
+
+__Statistics for Model: NIHSS_3mo ~ NIHSS_baseline + Protein LFC + Age__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + i + Age_blood, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.age <- out_df
+rownames(lm_Prot.age) <- rn[,1]
+lm_Prot.age$p.adj <- p.adjust(lm_Prot.age$p, method = "BH")
+
+kable(lm_Prot.age) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.age, file="lm_3mos_Prot_age.csv")
+```
+
+__Statistics for model: NIHSS_3mo ~ NIHSS_baseline + Protein LFC + Age + Sex__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + i + Age_blood + Sex, 
+            data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.sex.age <- out_df
+rownames(lm_Prot.sex.age) <- rn[,1]
+lm_Prot.sex.age$p.adj <- p.adjust(lm_Prot.sex.age$p, method = "BH")
+
+kable(lm_Prot.sex.age) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.sex.age, file="lm_3mos_Prot_sex_age.csv")
+```
+
+
+#### Models + NIHSS baseline scores + tPA status
+
+__Statistics for Model: NIHSS_3mo ~ NIHSS_baseline + tPA + Protein LFC + Sex__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + tPa +  i + Sex, 
+            data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_tpa.Prot.sex <- out_df
+rownames(lm_tpa.Prot.sex) <- rn[,1]
+lm_tpa.Prot.sex$p.adj <- p.adjust(lm_tpa.Prot.sex$p, method = "BH")
+
+kable(lm_tpa.Prot.sex) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_tpa.Prot.sex, file="lm_3mos_tpa_Prot_sex.csv")
+```
+
+__Statistics for Model: NIHSS_3mo ~ NIHSS_baseline +tPA +  Protein LFC + Age__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline +tPa +  i + Age_blood, 
+            data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.tpa.age <- out_df
+rownames(lm_Prot.tpa.age) <- rn[,1]
+lm_Prot.tpa.age$p.adj <- p.adjust(lm_Prot.tpa.age$p, method = "BH")
+
+kable(lm_Prot.tpa.age) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.tpa.age, file="lm_3mos_Prot_tpa_age.csv")
+```
+
+__Statistics for model: NIHSS_3mo ~ NIHSS_baseline + tPA +  Protein LFC + Age + Sex__
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline +tPa +  i + Age_blood + Sex, 
+            data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Prot.tpa.sex.age <- out_df
+rownames(lm_Prot.tpa.sex.age) <- rn[,1]
+lm_Prot.tpa.sex.age$p.adj <- p.adjust(lm_Prot.tpa.sex.age$p, method = "BH")
+
+kable(lm_Prot.tpa.sex.age) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Prot.tpa.sex.age, file="lm_3mos_Prot_tpa_sex_age.csv")
+```
+
+<br>  
+<br>  
+
+## Supplemental Figure 4. Plots of HDL protein logFC correlation with stroke recovery
+
+Visualizations of the relationship between proteins with significant relation to stroke recovery at 3 months,
+
+```{r fig.height=4, fig.width=12, message = FALSE, warning=FALSE, error=FALSE}
+ggplotRegression <- function (fit) {
+  ggplot(fit$model, aes_string(x = names(fit$model)[2], 
+                             y = names(fit$model)[1])) + 
+     geom_point(size=3) +
+     theme_bw() +
+     stat_smooth(method = "lm", col = "Dodgerblue2", alpha=0.3)
+
+}
+
+r1 <- ggplotRegression(lm(APOF ~ NIHSS_3mo, data=lfc_df))
+r2 <- ggplotRegression(lm(APOL1 ~ NIHSS_3mo, data=lfc_df))
+r3 <- ggplotRegression(lm(APMAP ~ NIHSS_3mo, data=lfc_df))
+r4 <- ggplotRegression(lm(LPA ~ NIHSS_3mo, data=lfc_df))
+r5 <- ggplotRegression(lm(APOC4 ~ NIHSS_3mo, data=lfc_df))
+r6 <- ggplotRegression(lm(APOM ~ NIHSS_3mo, data=lfc_df))
+r7 <- ggplotRegression(lm(PCYOX1 ~ NIHSS_3mo, data=lfc_df))
+r8 <- ggplotRegression(lm(PON1 ~ NIHSS_3mo, data=lfc_df))
+r9 <- ggplotRegression(lm(APOE ~ NIHSS_3mo, data=lfc_df))
+r10 <- ggplotRegression(lm(PPBP ~ NIHSS_3mo, data=lfc_df))
+
+grid.arrange(r1, r2, r3, r4, r5, r6, r7, r8, r9,
+             top = "Significantly associated protein changes with recovery", 
+             ncol = 5)
+```
+
+<br>  
+<br>
+
+<br>
+
+
+## Supplemental Figure 5. 
+
+Visualization of the linear regression of plasma lipid measures and stroke severity and recovery scores.
+
+```{r fig.height=10, fig.width=9, message = FALSE, warning=FALSE, error=FALSE}
+ch1 <- ggplotRegression(lm(Cholesterol ~ NIHSS_baseline, data=lfc_df))
+ch2 <- ggplotRegression(lm(Cholesterol ~ NIHSS_3mo, data=lfc_df))
+ch3 <- ggplotRegression(lm(Cholesterol ~ mRS, data=lfc_df))
+h1 <- ggplotRegression(lm(HDLC ~ NIHSS_baseline, data=lfc_df))
+h2 <- ggplotRegression(lm(HDLC ~ NIHSS_3mo, data=lfc_df))
+h3 <- ggplotRegression(lm(HDLC ~ mRS, data=lfc_df))
+l1 <- ggplotRegression(lm(LDLC ~ NIHSS_baseline, data=lfc_df))
+l2 <- ggplotRegression(lm(LDLC ~ NIHSS_3mo, data=lfc_df))
+l3 <- ggplotRegression(lm(LDLC ~ mRS, data=lfc_df))
+t1 <- ggplotRegression(lm(Triglycerides ~ NIHSS_baseline, data=lfc_df))
+t2 <- ggplotRegression(lm(Triglycerides ~ NIHSS_3mo, data=lfc_df))
+t3 <- ggplotRegression(lm(Triglycerides ~ mRS, data=lfc_df))
+ce1 <- ggplotRegression(lm(CEC ~ NIHSS_baseline, data=lfc_df))
+ce2 <- ggplotRegression(lm(CEC ~ NIHSS_3mo, data=lfc_df))
+ce3 <- ggplotRegression(lm(CEC ~ mRS, data=lfc_df))
+
+grid.arrange(ch1,ch2,ch3,h1,h2,h3,l1,l2,l3,t1,t2,t3,ce1,ce2,ce3, ncol = 3)
+```
+
+<br>  
+<br>  
+
+## Supplemental Table 6.
+
+Table with statistics of linear regressions of plasma lipid measures and stroke severity and recovery scores.
+
+```{r}
+cec_b <- lm_out(lm(CEC ~ NIHSS_baseline, data = lfc_df))
+cec_3 <- lm_out(lm(CEC ~ NIHSS_3mo, data = lfc_df))
+cec_m <- lm_out(lm(CEC ~ mRS, data = lfc_df))
+
+hdlc_b <- lm_out(lm(HDLC ~ NIHSS_baseline, data = lfc_df))
+hdlc_3 <- lm_out(lm(HDLC ~ NIHSS_3mo, data = lfc_df))
+hdlc_m <- lm_out(lm(HDLC ~ mRS, data = lfc_df))
+
+ldlc_b <- lm_out(lm(LDLC ~ NIHSS_baseline, data = lfc_df))
+ldlc_3 <- lm_out(lm(LDLC ~ NIHSS_3mo, data = lfc_df))
+ldlc_m <- lm_out(lm(LDLC ~ mRS, data = lfc_df))
+
+chol_b <- lm_out(lm(Cholesterol ~ NIHSS_baseline, data = lfc_df))
+chol_3 <- lm_out(lm(Cholesterol  ~ NIHSS_3mo, data = lfc_df))
+chol_m <- lm_out(lm(Cholesterol  ~ mRS, data = lfc_df))
+
+trig_b <- lm_out(lm(Triglycerides ~ NIHSS_baseline, data = lfc_df))
+trig_3 <- lm_out(lm(Triglycerides ~ NIHSS_3mo, data = lfc_df))
+trig_m <- lm_out(lm(Triglycerides ~ mRS, data = lfc_df))
+
+
+lm_lipids <- as.data.frame(rbind(cec_b, cec_3, cec_m, 
+                                 hdlc_b, hdlc_3, hdlc_m, 
+                                 ldlc_b, ldlc_3, ldlc_m, 
+                                 chol_b, chol_3, chol_m, 
+                                 trig_b, trig_3, trig_m))
+
+row.names(lm_lipids) <- c("cec_b", "cec_3", "cec_m", 
+                          "hdlc_b", "hdlc_3", "hdlc_m", 
+                          "ldlc_b", "ldlc_3", "ldlc_m", 
+                          "chol_b", "chol_3", "chol_m", 
+                          "trig_b", "trig_3", "trig_m")
+write.csv(lm_lipids, file="lm_lipids.csv")
+
+kable((lm_lipids)) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>  
+<br>  
+
+
+<br>
+
+
+## Supplemental Table 7. Linear regression statistics for plasma lipid levels and HDL protein Log2FC {.tabset}
+
+### Protein ~ CEC
+
+```{r}
+out_df <- data.frame()
+ 
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(i ~ CEC, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_CEC.Prot <- out_df
+rownames(lm_CEC.Prot) <- rn[,1]
+lm_CEC.Prot$p.adj <- p.adjust(lm_CEC.Prot$p, method = "BH")
+
+kable(lm_CEC.Prot, caption="Model: protein FC ~ CEC") %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_CEC.Prot, file="lm_CEC_prot.csv")
+```
+
+### Protein ~ HDLC
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(i ~ HDLC, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_HDLC.Prot <- out_df
+rownames(lm_HDLC.Prot) <- rn[,1]
+lm_HDLC.Prot$p.adj <- p.adjust(lm_HDLC.Prot$p, method = "BH")
+
+kable(lm_HDLC.Prot, caption="Model: protein FC ~ HDLC") %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_HDLC.Prot, file="lm_HDLC_prot.csv")
+```
+
+### Protein ~ LDLC
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(i ~ LDLC, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_LDLC.Prot <- out_df
+rownames(lm_LDLC.Prot) <- rn[,1]
+lm_LDLC.Prot$p.adj <- p.adjust(lm_LDLC.Prot$p, method = "BH")
+
+kable(lm_LDLC.Prot, caption="Model: protein FC ~ LDLC") %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_LDLC.Prot, file="lm_LDLC_prot.csv")
+```
+
+### Protein ~ Cholesterol
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(i ~ Cholesterol, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Chol.Prot <- out_df
+rownames(lm_Chol.Prot) <- rn[,1]
+lm_Chol.Prot$p.adj <- p.adjust(lm_Chol.Prot$p, method = "BH")
+
+kable(lm_Chol.Prot, caption="Model: protein FC ~ Cholesterol") %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Chol.Prot, file="lm_Chol_prot.csv")
+```
+
+### Protein ~ Triglycerides
+
+```{r}
+out_df <- data.frame()
+
+for (i in lfc_df[,25:ncol(lfc_df)]){
+  fit <- lm(i ~ Triglycerides, data = lfc_df)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+lm_Tri.Prot <- out_df
+rownames(lm_Tri.Prot) <- rn[,1]
+lm_Tri.Prot$p.adj <- p.adjust(lm_Tri.Prot$p, method = "BH")
+
+kable(lm_Tri.Prot, caption="Model: protein FC ~ Triglycerides") %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+
+write.csv(lm_Tri.Prot, file="lm_Tri_prot.csv")
+```
+
+<br>  
+<br>  
+
+## Supplemental Figure 6. CEC distributions of stroke tPA status
+
+__Distribution of cholesterol efflux capacity at 96 h post stroke with and without tPA treatment__
+
+```{r warning = FALSE, error=FALSE}
+cols <- c("No"="#202f52", "Yes" = "goldenrod1")
+
+ggplot(PS96, aes(x = factor(tPa), y = PS96$CEC, fill = tPa)) +
+    geom_violin(alpha=0.15, width=0.8) +
+    geom_boxplot(width=0.4, alpha = 0.8) +
+    geom_jitter(fill = "black", size = 3, shape = 21, 
+                position = position_jitter(0.075), alpha=0.6) +
+    scale_fill_manual(values=cols) +
+    scale_x_discrete(limits=c("No", "Yes")) +
+    labs(x="tPa", y="cholesterol efflux capacity (%)") + 
+    theme_bw() +
+    expand_limits(y=c(5,20))
+```
+
+<br>  
+__Distribution of cholesterol efflux capacity at 24 h post stroke with and without tPA treatment__
+
+*(Figure not included in manuscript)*
+```{r warning = FALSE, error=FALSE}
+cols <- c("No"="#202f52", "Yes" = "goldenrod1")
+
+ggplot(S24, aes(x = factor(tPa), y = S24$CEC, fill = tPa)) +
+    geom_violin(alpha=0.15, width=0.8) +
+    geom_boxplot(width=0.4, alpha = 0.8) +
+    geom_jitter(fill = "black", size = 3, shape = 21, 
+                position = position_jitter(0.075), alpha=0.6) +
+    scale_fill_manual(values=cols) +
+    scale_x_discrete(limits=c("No", "Yes")) +
+    labs(x="tPa", y="cholesterol efflux capacity (%)") + 
+    theme_bw() +
+    expand_limits(y=c(5,20))
+```
+
+
+## Supplemental Table 8. T-test statistics for plasma lipid levels by stroke tPA status
+
+tPA significance: Just 24 h, just 96 h, and log2FC 24 - 96 h
+
+__T-test for 24 h post stroke cholesterol efflux capacity with and without tPA__
+```{r}
+#I am too lazy to format the output:
+t.test(S24$CEC ~ S24$tPa)
+```
+
+__T-test for 96 h post stroke cholesterol efflux capacity with and without tPA__
+```{r}
+t.test(PS96$CEC ~ PS96$tPa)
+```
+
+<br>
+<br>
+
+
+# 8. Additional info for reviewers
+
+## APOA1 differences between groups
+
+APOA1 is the major protein component of HDL particles. Therefore it was of interest to reviewers to know whether APOA1 showed a trend between our sample groups. Although not significant, APOA1 trends slightly higher in both stroke time points, inverse of the plasma HDL-C levels. 
+
+```{r}
+allViolinplot(logAll, logAll$APOA1) +
+  ggtitle("APOA1") 
+```
+
+
+
+## Influence of outlier NIHSS on protein & recovery correlations
+
+Since proteins are found to be associated with NIHSS recovery scores, we re-analyzed their relationship after removal of the individual with a very high NIHSS score (=37). The protein APOF still is significantly correlated after removal of the outlier, and after multiple testing correction.
+
+__Statistics without outlier for model: NIHSS_3mo ~ NIHSS_baseline + Protein LFC__
+
+```{r}
+#dataset without the outlier individual
+no_out <- data.frame(subset(lfc_df, NIHSS_3mo!=37))
+
+out_df <- data.frame()
+
+for (i in no_out[,25:ncol(no_out)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + i, data = no_out)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+olm_Prot.base <- out_df
+rn <- data.frame(colnames(lfc_df[,25:ncol(no_out)]))
+rownames(olm_Prot.base) <- rn[,1]
+olm_Prot.base$p.adj <- p.adjust(olm_Prot.base$p, method = "BH")
+
+kable(olm_Prot.base) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>  
+<br>  
+
+__Statistics without outlier for model: NIHSS_3mo ~ NIHSS_baseline + tPA + Protein LFC__
+
+```{r}
+out_df <- data.frame()
+
+for (i in no_out[,25:ncol(no_out)]){
+  fit <- lm(NIHSS_3mo ~ NIHSS_baseline + i + tPa, data = no_out)
+  out <- data.frame(lm_out(fit))
+  out_df <- data.frame(rbind(out_df, out))
+}
+
+olm_Prot.base <- out_df
+rn <- data.frame(colnames(lfc_df[,25:ncol(no_out)]))
+rownames(olm_Prot.base) <- rn[,1]
+olm_Prot.base$p.adj <- p.adjust(olm_Prot.base$p, method = "BH")
+
+kable(olm_Prot.base) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>  
+<br>  
+<br>  
+
+... I hope you found this document helpful! Sorry for any terrible syntax or poor commenting - feel free to reach out with comments or questions!
+
+-Deanna
+
+
+```{r}
+sessionInfo()
+```
+
