@@ -1,10 +1,10 @@
 # StrokeHDLproteins
 R based analysis of stroke patient HDL protein assay data.
 
-_DESCRIPTION_
+__DESCRIPTION__
 This project contains the rmarkdown documentation that corresponds to the statistical analysis used for the preparation of the manuscript: "High-density lipoprotein carries markers that track with recovery from stroke" by Plubell et al., Circulation Research, 2020. DOI will be added upon publication. The analysis is performed almost entirely from the data found in the supplemental table 1. An additional .csv data file for a supplemental figure is provided here. 
 
-_FILES_
+__FILES__  
 
 "SupplementalTable_1.xlsx" Excel workbook with patient metadata, plasma lipid measures, and relative protein abundance measures.
 

@@ -129,6 +129,7 @@ all$SAA4 <- NULL
 
 <br>  
 
+
 # 2. Demographic information
 
 ## Table 1: Non-stroke v Stroke sample demographics {.tabset}
@@ -429,7 +430,7 @@ results_p_t.test <-rename(results_p_t.test, c(".id"= "Protein",
 
 count_pair <- with(results_p_t.test, sum(adj.P.Val<0.05))
 
-write.csv(results_p_t.test, file="paired_ttest.csv")
+#write.csv(results_p_t.test, file="paired_ttest.csv")
 
 kable(results_p_t.test, 
       caption="Paired t-test statistics for 24 h and 96 h post stroke samples") %>%
@@ -439,7 +440,34 @@ kable(results_p_t.test,
 <br>  
 From paired t.test analysis `r count_pair` proteins are significantly different between the two time points.
 <br>  
+<br>
 
+### Extra: Paired Wilcoxon ranked sum test for 24h - 96 h paired samples
+
+At least one of the significantly changing proteins (SAA2) is non-normally distributed by the Shapiro-Wilk test, so the paired measurements are also assessed by wilcoxon signed rank test.
+
+```{r}
+wilcox <- lapply(non_missing[, 24:length(non_missing)], 
+                   function(x) pairwise.wilcox.test(x, non_missing$Group, 
+                                          p.adjust ="BH", paired = TRUE))
+
+results_wilcox <- ldply(wilcox, function(x) x$p.value)
+results_wilcox$adj.P.Val <- p.adjust(results_wilcox$S24, method="BH")
+names(results_wilcox)[1] <- "protein"
+names(results_wilcox)[2] <- "p.value"
+
+count_pair <- with(results_wilcox, sum(adj.P.Val<0.05))
+
+kable(results_wilcox, 
+      caption="Wilcox Paired t-test statistics for 24 h and 96 h post stroke samples") %>%
+  kable_styling() %>%
+  scroll_box(width = "75%", height = "300px")
+```
+<br>  
+Again, we find the same `r count_pair` proteins to be significantly different (adj. p-value <0.05) by paired Wilcoxon.
+
+<br>
+<br>
 
 ### Linear model for each protein
 
@@ -482,12 +510,12 @@ num <- sapply(out1,function(x) sum(x$adj.P<0.05))
 # C vs S24 results
 S24vC <- out1[[1]]
 count_24vC <- with(S24vC, sum(adj.P.Val<0.05))
-write.csv(S24vC, file="S24vC.csv")
+#write.csv(S24vC, file="S24vC.csv")
 
 # C vs S96 results
 S96vC <- out1[[2]]
 count_96vC <- with(S96vC, sum(adj.P.Val<0.05))
-write.csv(S96vC, file="S96vC.csv")
+#write.csv(S96vC, file="S96vC.csv")
 
 #Table of the C v 24 h post stroke results
 kable(S24vC, caption="Model: ~0 + Group + Sex + HDLC") %>%
@@ -766,7 +794,9 @@ corrplot(lFC.rval.BH_pears, is.corr=FALSE, order="hclust",
 
 Hierarchical clustering with the complete method
 ```{r fig.width=13}
+#generate pearson correlation matrix
 cor.pear<-rcorr(as.matrix(lfc_matrix), type="pearson")
+#hierarchical clustering
 hclust.x<-hclust((as.dist(1-abs(cor.pear$r))),method="complete")
 par(cex=1.2)
 plot(hclust.x,ylab = "1-|r|",xlab="",main="")
@@ -828,7 +858,7 @@ kable(lm_NIH3_baseline.Prot) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_NIH3_baseline.Prot, file="lm_3mos_bs_Prot.csv")
+#write.csv(lm_NIH3_baseline.Prot, file="lm_3mos_bs_Prot.csv")
 ```
 
 Only __`r count_sig_t4`__ significant correlations are reported in Table 4. All protein statistics are reported in Supplemental Table 5, along with the other linear models examined.
@@ -949,8 +979,8 @@ The p values and r values corresponding to the large correlation plot in Figure 
 
 __Pearson correlation r statistic matrix__
 ```{r}
-write.csv(lFC.pval.BH_pears, "lFC_pvalBH_pears.csv", row.names=FALSE)
-write.csv(lFC.rval.BH_pears, "lFC_rvalBH_pears.csv", row.names=FALSE)
+#write.csv(lFC.pval.BH_pears, "lFC_pvalBH_pears.csv", row.names=FALSE)
+#write.csv(lFC.rval.BH_pears, "lFC_rvalBH_pears.csv", row.names=FALSE)
 
 kable(lFC.pval.BH_pears) %>%
   kable_styling() %>%
@@ -998,7 +1028,7 @@ kable(lm_NIH3_baseline.tPa.Prot) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_NIH3_baseline.tPa.Prot, file="lm_3mos_bs_Prot_tpa.csv")
+#write.csv(lm_NIH3_baseline.tPa.Prot, file="lm_3mos_bs_Prot_tpa.csv")
 ```
 <br>  
 
@@ -1021,7 +1051,7 @@ kable(lm_NIH3_tPa.Prot) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_NIH3_tPa.Prot, file="lm_3mos_Prot_tpa.csv")
+#write.csv(lm_NIH3_tPa.Prot, file="lm_3mos_Prot_tpa.csv")
 ```
 
 <br>  
@@ -1048,7 +1078,7 @@ kable(lm_mRS_baseline.Prot) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_mRS_baseline.Prot, file="lm_mRS_baseline_Prot.csv")
+#write.csv(lm_mRS_baseline.Prot, file="lm_mRS_baseline_Prot.csv")
 ```
 <br>  
 
@@ -1072,7 +1102,7 @@ kable(lm_mRS_baseline.tPa.Prot) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_mRS_baseline.tPa.Prot, file="lm_mRS_baseline_Prot_tpa.csv")
+#write.csv(lm_mRS_baseline.tPa.Prot, file="lm_mRS_baseline_Prot_tpa.csv")
 ```
 <br>  
 
@@ -1095,7 +1125,7 @@ kable(lm_mRS_tPa.Prot) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_mRS_tPa.Prot, file="lm_mRS_tpa_Prot.csv")
+#write.csv(lm_mRS_tPa.Prot, file="lm_mRS_tpa_Prot.csv")
 ```
 <br>  
 
@@ -1124,7 +1154,7 @@ kable(lm_Prot.sex) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.sex, file="lm_Prot_sex.csv")
+#write.csv(lm_Prot.sex, file="lm_Prot_sex.csv")
 ```
 
 __Statistics for Model: NIHSS_3mo ~ Protein LFC + Age__
@@ -1146,7 +1176,7 @@ kable(lm_Prot.age) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.age, file="lm_Prot_age.csv")
+#write.csv(lm_Prot.age, file="lm_Prot_age.csv")
 ```
 
 __Statistics for model: NIHSS_3mo ~ Protein LFC + Age + Sex__
@@ -1168,7 +1198,7 @@ kable(lm_Prot.sex.age) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.sex.age, file="lm_Prot_sex_age.csv")
+#write.csv(lm_Prot.sex.age, file="lm_Prot_sex_age.csv")
 ```
 
 #### Models + NIHSS baseline scores
@@ -1192,7 +1222,7 @@ kable(lm_Prot.sex) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.sex, file="lm_3mos_Prot_sex.csv")
+#write.csv(lm_Prot.sex, file="lm_3mos_Prot_sex.csv")
 ```
 
 __Statistics for Model: NIHSS_3mo ~ NIHSS_baseline + Protein LFC + Age__
@@ -1214,7 +1244,7 @@ kable(lm_Prot.age) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.age, file="lm_3mos_Prot_age.csv")
+#write.csv(lm_Prot.age, file="lm_3mos_Prot_age.csv")
 ```
 
 __Statistics for model: NIHSS_3mo ~ NIHSS_baseline + Protein LFC + Age + Sex__
@@ -1237,7 +1267,7 @@ kable(lm_Prot.sex.age) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.sex.age, file="lm_3mos_Prot_sex_age.csv")
+#write.csv(lm_Prot.sex.age, file="lm_3mos_Prot_sex_age.csv")
 ```
 
 
@@ -1263,7 +1293,7 @@ kable(lm_tpa.Prot.sex) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_tpa.Prot.sex, file="lm_3mos_tpa_Prot_sex.csv")
+#write.csv(lm_tpa.Prot.sex, file="lm_3mos_tpa_Prot_sex.csv")
 ```
 
 __Statistics for Model: NIHSS_3mo ~ NIHSS_baseline +tPA +  Protein LFC + Age__
@@ -1286,7 +1316,7 @@ kable(lm_Prot.tpa.age) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.tpa.age, file="lm_3mos_Prot_tpa_age.csv")
+#write.csv(lm_Prot.tpa.age, file="lm_3mos_Prot_tpa_age.csv")
 ```
 
 __Statistics for model: NIHSS_3mo ~ NIHSS_baseline + tPA +  Protein LFC + Age + Sex__
@@ -1309,7 +1339,7 @@ kable(lm_Prot.tpa.sex.age) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Prot.tpa.sex.age, file="lm_3mos_Prot_tpa_sex_age.csv")
+#write.csv(lm_Prot.tpa.sex.age, file="lm_3mos_Prot_tpa_sex_age.csv")
 ```
 
 <br>  
@@ -1323,7 +1353,7 @@ Visualizations of the relationship between proteins with significant relation to
 ggplotRegression <- function (fit) {
   ggplot(fit$model, aes_string(x = names(fit$model)[2], 
                              y = names(fit$model)[1])) + 
-     geom_point(size=3) +
+     geom_point(size=2, alpha=0.8) +
      theme_bw() +
      stat_smooth(method = "lm", col = "Dodgerblue2", alpha=0.3)
 
@@ -1415,7 +1445,7 @@ row.names(lm_lipids) <- c("cec_b", "cec_3", "cec_m",
                           "ldlc_b", "ldlc_3", "ldlc_m", 
                           "chol_b", "chol_3", "chol_m", 
                           "trig_b", "trig_3", "trig_m")
-write.csv(lm_lipids, file="lm_lipids.csv")
+#write.csv(lm_lipids, file="lm_lipids.csv")
 
 kable((lm_lipids)) %>%
   kable_styling() %>%
@@ -1450,7 +1480,7 @@ kable(lm_CEC.Prot, caption="Model: protein FC ~ CEC") %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_CEC.Prot, file="lm_CEC_prot.csv")
+#write.csv(lm_CEC.Prot, file="lm_CEC_prot.csv")
 ```
 
 ### Protein ~ HDLC
@@ -1472,7 +1502,7 @@ kable(lm_HDLC.Prot, caption="Model: protein FC ~ HDLC") %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_HDLC.Prot, file="lm_HDLC_prot.csv")
+#write.csv(lm_HDLC.Prot, file="lm_HDLC_prot.csv")
 ```
 
 ### Protein ~ LDLC
@@ -1494,7 +1524,7 @@ kable(lm_LDLC.Prot, caption="Model: protein FC ~ LDLC") %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_LDLC.Prot, file="lm_LDLC_prot.csv")
+#write.csv(lm_LDLC.Prot, file="lm_LDLC_prot.csv")
 ```
 
 ### Protein ~ Cholesterol
@@ -1516,7 +1546,7 @@ kable(lm_Chol.Prot, caption="Model: protein FC ~ Cholesterol") %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Chol.Prot, file="lm_Chol_prot.csv")
+#write.csv(lm_Chol.Prot, file="lm_Chol_prot.csv")
 ```
 
 ### Protein ~ Triglycerides
@@ -1538,7 +1568,7 @@ kable(lm_Tri.Prot, caption="Model: protein FC ~ Triglycerides") %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 
-write.csv(lm_Tri.Prot, file="lm_Tri_prot.csv")
+#write.csv(lm_Tri.Prot, file="lm_Tri_prot.csv")
 ```
 
 <br>  
@@ -1668,6 +1698,10 @@ kable(olm_Prot.base) %>%
 ```
 
 <br>  
+
+
+
+<br>
 <br>  
 <br>  
 
@@ -1679,4 +1713,5 @@ kable(olm_Prot.base) %>%
 ```{r}
 sessionInfo()
 ```
+
 
